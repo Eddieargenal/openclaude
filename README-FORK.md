@@ -215,7 +215,7 @@ The script:
 │   └── memory/
 │       └── memory-rules.md               # Memory format and governance rules
 ├── projects/
-│   └── -Users-YOUR_USERNAME/
+│   └── -Users-yourname/  (macOS) or -root/ or -home-yourname/ (Linux)
 │       └── memory/
 │           ├── MEMORY.md                 # Index of all memory files
 │           ├── user_role.md              # Who you are — edit this first
@@ -237,7 +237,8 @@ The script:
 **Edit `user_role.md`** — this is the most important step. Open it and replace the placeholder with a description of yourself:
 
 ```bash
-nano ~/.claude/projects/-Users-$(whoami)/memory/user_role.md
+# The path is derived from your $HOME — e.g. /root → -root, /Users/eddie → -Users-eddie
+nano ~/.claude/projects/$(echo $HOME | tr '/' '-')/memory/user_role.md
 ```
 
 Examples of what to write:
@@ -251,7 +252,7 @@ The agent reads this on every session start to tailor its responses to you.
 
 ### How memory grows over time
 
-The agent will add new memory files to `~/.claude/projects/-Users-YOUR_USERNAME/memory/` as it learns things about you and your projects. Each file has a frontmatter header (`type: user | feedback | project | reference`) and one-line facts. The `MEMORY.md` index is updated automatically to point to each new file.
+The agent will add new memory files to `~/.claude/projects/$(echo $HOME | tr '/' '-')/memory/` as it learns things about you and your projects. Each file has a frontmatter header (`type: user | feedback | project | reference`) and one-line facts. The `MEMORY.md` index is updated automatically to point to each new file.
 
 Skills are slash commands you can invoke inside a session:
 
@@ -325,6 +326,157 @@ git fetch myfork
 git merge myfork/main
 PATH="$PATH:$HOME/.bun/bin" npm run build
 ```
+
+---
+
+## VPS Deployment (Docker + code-server)
+
+This fork includes a Docker setup that runs OpenClaude inside a [code-server](https://github.com/coder/code-server) container — a browser-accessible VS Code with a persistent terminal. This lets you run `oc` from any device without installing anything locally.
+
+The files are in `.vps/` and `Dockerfile.vps` in the repo root.
+
+### Prerequisites
+
+- A Linux VPS (Debian/Ubuntu recommended)
+- Docker + Docker Compose v2
+- A reverse proxy (Traefik, Nginx, Caddy) to expose code-server over HTTPS — or use Cloudflare Tunnel
+
+Install Docker on Debian/Ubuntu:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+```
+
+### Step 1 — Set up the directory structure on the VPS
+
+```bash
+mkdir -p ~/docker/openclaude/source/.vps
+mkdir -p ~/docker/openclaude/config
+mkdir -p ~/docker/openclaude/claude-memory
+```
+
+### Step 2 — Copy the repo source to the VPS
+
+From your local machine (inside the cloned repo):
+
+```bash
+# Copy built artifacts and Docker files to the VPS
+scp -r dist/ bin/ package.json README.md node_modules/ \
+    Dockerfile.vps .vps/ \
+    USER@YOUR_VPS_IP:~/docker/openclaude/source/
+```
+
+Or clone the fork directly on the VPS and build there:
+
+```bash
+# On the VPS
+git clone https://github.com/Eddieargenal/openclaude.git ~/docker/openclaude/source
+cd ~/docker/openclaude/source
+PATH="$PATH:$HOME/.bun/bin" npm install
+PATH="$PATH:$HOME/.bun/bin" npm run build
+```
+
+### Step 3 — Create the .env file
+
+```bash
+cat > ~/docker/openclaude/.env <<'EOF'
+OPENROUTER_API_KEY=sk-or-...
+EOF
+```
+
+Replace `sk-or-...` with your actual OpenRouter API key. This file is read by Docker Compose and never committed to git.
+
+### Step 4 — Copy docker-compose.yml
+
+```bash
+cp ~/docker/openclaude/source/.vps/docker-compose.yml ~/docker/openclaude/docker-compose.yml
+```
+
+### Step 5 — Install the memory system
+
+```bash
+# Run the install script targeting the claude-memory directory
+# The container runs as root, so HOME inside the container is /root → slug is -root
+mkdir -p ~/docker/openclaude/claude-memory/projects/-root/memory
+mkdir -p ~/docker/openclaude/claude-memory/_system/memory
+mkdir -p ~/docker/openclaude/claude-memory/skills
+
+# Copy base files
+cp ~/docker/openclaude/source/examples/memory-system/CLAUDE.md \
+   ~/docker/openclaude/claude-memory/CLAUDE.md
+
+cp ~/docker/openclaude/source/examples/memory-system/_system/memory/memory-rules.md \
+   ~/docker/openclaude/claude-memory/_system/memory/memory-rules.md
+
+cp ~/docker/openclaude/source/examples/memory-system/memory/*.md \
+   ~/docker/openclaude/claude-memory/projects/-root/memory/
+
+# Copy all skills
+for skill_dir in ~/docker/openclaude/source/examples/memory-system/skills/*/; do
+  skill_name="$(basename "$skill_dir")"
+  mkdir -p ~/docker/openclaude/claude-memory/skills/$skill_name
+  cp "$skill_dir/SKILL.md" ~/docker/openclaude/claude-memory/skills/$skill_name/SKILL.md
+done
+
+# Fix permissions so the container (root) can write
+chmod -R a+rX ~/docker/openclaude/claude-memory
+```
+
+> **Note:** The container runs as `root`, so `$HOME` inside is `/root` and the memory slug is `-root`. This is already accounted for in the `oc-function.sh` which uses a dynamic path.
+
+### Step 6 — Build and start
+
+```bash
+cd ~/docker/openclaude
+docker compose build
+docker compose up -d
+```
+
+### Step 7 — Edit user_role.md
+
+```bash
+nano ~/docker/openclaude/claude-memory/projects/-root/memory/user_role.md
+```
+
+Replace the placeholder text with a description of yourself. This is the most important personalisation step.
+
+### Step 8 — Access code-server
+
+Point your reverse proxy or Cloudflare Tunnel at the container's port `8443`. Open the URL in your browser, enter the password (set via `PASSWORD` env var in docker-compose — defaults to `openclaude`), and open a terminal. Run `oc` to launch.
+
+To change the password, edit `docker-compose.yml`:
+
+```yaml
+environment:
+  - PASSWORD=your-strong-password
+  - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+```
+
+### Host directory layout
+
+```
+~/docker/openclaude/
+├── docker-compose.yml       # copied from .vps/
+├── .env                     # your API key — never commit this
+├── source/                  # repo source + built dist/
+│   ├── Dockerfile.vps
+│   ├── .vps/
+│   ├── dist/
+│   └── ...
+├── config/                  # code-server user data (extensions, settings)
+└── claude-memory/           # mounted to /root/.claude inside the container
+    ├── CLAUDE.md
+    ├── _system/memory/memory-rules.md
+    ├── projects/-root/memory/
+    │   ├── MEMORY.md
+    │   ├── user_role.md
+    │   └── ...
+    └── skills/
+        └── memory-write/ memory-recall/ ...
+```
+
+Memory persists across container restarts because `claude-memory/` is a bind mount — not stored inside the container.
 
 ---
 

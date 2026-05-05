@@ -1,0 +1,38 @@
+# ---- stage 1: production dependencies (node:22-slim/Debian, cached) ----
+FROM node:22-slim AS deps
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
+# ---- stage 2: code-server + OpenClaude (node:22-slim, Debian not Ubuntu) ----
+FROM node:22-slim
+
+# Install tools + code-server binary in one layer (Debian mirrors, NOT Ubuntu/Canonical)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl git ripgrep && \
+    curl -fsSL "https://github.com/coder/code-server/releases/download/v4.93.1/code-server-4.93.1-linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /usr/local && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built OpenClaude artifacts
+WORKDIR /opt/openclaude
+COPY dist/cli.mjs dist/cli.mjs
+COPY dist/sdk.mjs dist/sdk.mjs
+COPY bin/ bin/
+COPY package.json package.json
+COPY README.md README.md
+COPY --from=deps /app/node_modules/ node_modules/
+RUN ln -s /opt/openclaude/bin/openclaude /usr/local/bin/openclaude
+
+# oc() shell function for all interactive shells
+COPY .vps/oc-function.sh /etc/profile.d/openclaude.sh
+RUN chmod 644 /etc/profile.d/openclaude.sh
+
+# Startup entrypoint
+COPY .vps/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8443
+
+CMD ["/entrypoint.sh"]
