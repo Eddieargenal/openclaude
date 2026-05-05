@@ -32,6 +32,7 @@ $(cat "$f")"
   OPENAI_BASE_URL="https://openrouter.ai/api/v1" \
   OPENAI_API_KEY="${OPENROUTER_API_KEY}" \
   OPENAI_MODEL="$model" \
-  openclaude --dangerously-skip-permissions --bare --add-dir "$HOME" \
+  openclaude --bare --add-dir "$HOME" \
+    --allowedTools "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,TodoRead,TodoWrite" \
     --append-system-prompt "$context" "$@"
 }
