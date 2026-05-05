@@ -20,10 +20,72 @@ Five bug fixes for OpenRouter reasoning models — see [`docs/openrouter-reasoni
 
 ## Prerequisites
 
-- **Node.js** ≥ 18
-- **Bun** (for building from source) — [install](https://bun.sh)
-- **Git**
-- An **OpenRouter API key** — [openrouter.ai/keys](https://openrouter.ai/keys)
+### Required software
+
+| Tool | Version | Purpose |
+|---|---|---|
+| **Node.js** | ≥ 18 | Runtime for the CLI |
+| **npm** | bundled with Node | Package manager and `npm link` |
+| **Bun** | latest | Build tool (compiles TypeScript source) |
+| **Git** | any recent | Clone the repo |
+| **ripgrep** (`rg`) | any | File search tool used by the agent |
+
+### macOS
+
+```bash
+# Install Homebrew if you don't have it
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Node.js, Git, and ripgrep
+brew install node git ripgrep
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+# Reload your shell so bun is on PATH
+source ~/.zshrc
+```
+
+Verify everything is installed:
+
+```bash
+node --version   # should print v18 or higher
+npm --version
+bun --version
+git --version
+rg --version
+```
+
+### Linux (Debian / Ubuntu)
+
+```bash
+# Install Node.js 20 via NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs git ripgrep
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+# Reload your shell so bun is on PATH
+source ~/.bashrc
+```
+
+### Linux (Fedora / RHEL / CentOS)
+
+```bash
+# Install Node.js 20 via NodeSource
+curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+sudo dnf install -y nodejs git ripgrep
+
+# Install Bun
+curl -fsSL https://bun.sh/install | bash
+
+source ~/.bashrc
+```
+
+### OpenRouter API key
+
+Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys). Many models have a free tier — no credit card required to get started.
 
 ---
 
