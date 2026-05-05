@@ -138,7 +138,7 @@ Replace `YOUR_USERNAME` with your macOS username (output of `whoami`):
 ```bash
 oc() {
   local model="${OPENCLAUDE_MODEL:-google/gemini-2.0-flash-001}"
-  local memory_dir="$HOME/.claude/projects/-Users-YOUR_USERNAME/memory"
+  local memory_dir="$HOME/.claude/projects/$(echo $HOME | tr '/' '-')/memory" # works on macOS and Linux automatically
   local claude_md="$HOME/.claude/CLAUDE.md"
   local memory_rules="$HOME/.claude/_system/memory/memory-rules.md"
 

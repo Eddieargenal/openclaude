@@ -6,6 +6,7 @@ web/*.tsbuildinfo
 .env
 .env.*
 !.env.example
+.vps/.env
 .openclaude-profile.json
 reports/
 GEMINI.md

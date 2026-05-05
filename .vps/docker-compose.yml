@@ -1,0 +1,23 @@
+services:
+  openclaude:
+    build:
+      context: /home/eddie/docker/openclaude/source
+      dockerfile: Dockerfile.vps
+    image: openclaude:local
+    container_name: openclaude
+    restart: unless-stopped
+    environment:
+      - PASSWORD=openclaude
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - /home/eddie/docker/openclaude/config:/config
+      - /home/eddie/docker/openclaude/claude-memory:/root/.claude
+    expose:
+      - "8443"
+    mem_limit: 1g
+    networks:
+      - my-main-net
+
+networks:
+  my-main-net:
+    external: true
