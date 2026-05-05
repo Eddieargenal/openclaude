@@ -163,6 +163,22 @@ function inferRemoteModelOpenAIShimConfig(
     }
   }
 
+  if (normalizedModel.includes('minimax')) {
+    return {
+      preserveReasoningContent: true,
+      reasoningContentFallback: '',
+      maxTokensField: 'max_tokens',
+      removeBodyFields: ['store'],
+    }
+  }
+
+  if (normalizedModel.includes('gemini') || normalizedModel.startsWith('google/')) {
+    return {
+      maxTokensField: 'max_tokens',
+      removeBodyFields: ['store', 'stream_options'],
+    }
+  }
+
   return undefined
 }
 

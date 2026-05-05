@@ -845,6 +845,7 @@ interface OpenAIStreamChunk {
       role?: string
       content?: string | null
       reasoning_content?: string | null
+      reasoning?: string | null
       tool_calls?: Array<{
         index: number
         id?: string
@@ -1055,7 +1056,8 @@ async function* openaiStreamToAnthropic(
         // Reasoning models (e.g. GLM-5, DeepSeek) may stream chain-of-thought
         // in `reasoning_content` before the actual reply appears in `content`.
         // Emit reasoning as a thinking block and content as a text block.
-        if (delta.reasoning_content != null && delta.reasoning_content !== '') {
+        if ((delta.reasoning_content != null && delta.reasoning_content !== '') || (delta.reasoning != null && delta.reasoning !== '')) {
+          const reasoningDelta = delta.reasoning_content ?? delta.reasoning ?? ''
           if (!hasEmittedThinkingStart) {
             yield {
               type: 'content_block_start',
@@ -1067,7 +1069,7 @@ async function* openaiStreamToAnthropic(
           yield {
             type: 'content_block_delta',
             index: contentBlockIndex,
-            delta: { type: 'thinking_delta', thinking: delta.reasoning_content },
+            delta: { type: 'thinking_delta', thinking: reasoningDelta },
           }
         }
 
@@ -1315,6 +1317,24 @@ async function* openaiStreamToAnthropic(
     reader.releaseLock()
   }
 
+  // Some providers (e.g. MiniMax via OpenRouter) send finish_reason: null on the
+  // final content chunk and close the stream with [DONE]. Close any blocks that
+  // were left open because the finish_reason-gated path never ran.
+  if (hasEmittedThinkingStart && !hasClosedThinking) {
+    yield { type: 'content_block_stop', index: contentBlockIndex }
+    contentBlockIndex++
+    hasClosedThinking = true
+  }
+  if (hasEmittedContentStart) {
+    yield* closeActiveContentBlock()
+  }
+  if (lastStopReason === null && (hasEmittedContentStart || hasEmittedThinkingStart)) {
+    yield {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn', stop_sequence: null },
+    }
+  }
+
   const stats = getStreamStats(streamState)
   if (stats.totalChunks > 0) {
     logForDebugging(
@@ -1554,6 +1574,10 @@ class OpenAIShimMessages {
       reasoningContentFallback: shimConfig.reasoningContentFallback,
     })
 
+    if (process.env.OPENCLAUDE_DEBUG_MSGS) {
+      process.stderr.write(`[msg-debug] messages sent (${openaiMessages.length}):\n${JSON.stringify(openaiMessages, null, 2)}\n`)
+    }
+
     const body: Record<string, unknown> = {
       model: request.resolvedModel,
       messages: openaiMessages,
@@ -1723,6 +1747,13 @@ class OpenAIShimMessages {
       ...filterAnthropicHeaders(shimConfig.headers),
       ...this.defaultHeaders,
       ...filterAnthropicHeaders(options?.headers),
+    }
+
+    // OpenRouter requires these headers for stable streaming with some models
+    const baseUrl = request.baseUrl ?? process.env.OPENAI_BASE_URL ?? ''
+    if (baseUrl.includes('openrouter.ai')) {
+      headers['HTTP-Referer'] = 'https://github.com/Gitlawb/openclaude'
+      headers['X-Title'] = 'OpenClaude'
     }
 
     const isGemini = isGeminiMode()
@@ -2157,6 +2188,7 @@ class OpenAIShimMessages {
             | null
             | Array<{ type?: string; text?: string }>
           reasoning_content?: string | null
+          reasoning?: string | null
           tool_calls?: Array<{
             id: string
             function: { name: string; arguments: string }
@@ -2181,7 +2213,7 @@ class OpenAIShimMessages {
     // Some reasoning models (e.g. GLM-5) put their chain-of-thought in
     // reasoning_content while content stays null. Preserve it as a thinking
     // block, but do not surface it as visible assistant text.
-    const reasoningText = choice?.message?.reasoning_content
+    const reasoningText = choice?.message?.reasoning_content ?? choice?.message?.reasoning
     if (typeof reasoningText === 'string' && reasoningText) {
       content.push({ type: 'thinking', thinking: reasoningText })
     }
