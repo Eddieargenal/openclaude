@@ -128,88 +128,79 @@ source ~/.zshrc
 
 ## Step 4 — Memory System
 
-The memory system gives the agent persistent context across sessions. It lives at `~/.claude/` and is injected into every session via `--append-system-prompt` in the `oc` function.
+The memory system gives the agent persistent context across sessions. It lives at `~/.claude/` and is injected on every launch via `--append-system-prompt` in the `oc` function. All the files you need are included in this repo under `examples/memory-system/`.
 
-### Directory structure
+### Install with one command
+
+From the repo root:
+
+```bash
+bash examples/install-memory.sh
+```
+
+The script:
+- Creates all required directories under `~/.claude/`
+- Copies `CLAUDE.md`, `memory-rules.md`, the memory index, example memory files, and all 8 skill definitions
+- Skips any file that already exists — safe to re-run
+- Prints your exact next steps at the end with your username pre-filled
+
+### What gets installed
 
 ```
 ~/.claude/
-├── CLAUDE.md                          # Global instructions for the agent
+├── CLAUDE.md                              # Global agent instructions
 ├── _system/
 │   └── memory/
-│       └── memory-rules.md            # Memory format and write rules
+│       └── memory-rules.md               # Memory format and governance rules
 ├── projects/
 │   └── -Users-YOUR_USERNAME/
 │       └── memory/
-│           ├── MEMORY.md              # Index of all memory files
-│           ├── user_role.md           # Who you are
-│           ├── feedback_*.md          # Behavioral feedback memories
-│           ├── project_*.md           # Ongoing project context
-│           └── reference_*.md        # Pointers to external resources
-└── skills/                            # Slash-command skill definitions
-    ├── memory-write.md
-    ├── memory-recall.md
-    ├── audit-memory.md
-    └── ...
+│           ├── MEMORY.md                 # Index of all memory files
+│           ├── user_role.md              # Who you are — edit this first
+│           ├── project_setup.md          # Setup checklist the agent tracks
+│           └── feedback_response_style.md # Default communication preferences
+└── skills/
+    ├── memory-write/SKILL.md             # Save a new memory fact
+    ├── memory-recall/SKILL.md            # Retrieve memories by keyword or topic
+    ├── audit-memory/SKILL.md             # Check for stale or contradictory memories
+    ├── snapshot-memory/SKILL.md          # Snapshot memory before risky changes
+    ├── promote-memory/SKILL.md           # Promote a candidate memory to permanent
+    ├── recover-session/SKILL.md          # Recover context after a crash or compaction
+    ├── consolidate-memory/SKILL.md       # Merge duplicate or related memories
+    └── inspect-compaction/SKILL.md       # Review compaction candidates
 ```
 
-### Create the base files
+### After installing
+
+**Edit `user_role.md`** — this is the most important step. Open it and replace the placeholder with a description of yourself:
 
 ```bash
-mkdir -p ~/.claude/projects/-Users-$(whoami)/memory
-mkdir -p ~/.claude/_system/memory
-mkdir -p ~/.claude/skills
+nano ~/.claude/projects/-Users-$(whoami)/memory/user_role.md
 ```
 
-**`~/.claude/CLAUDE.md`** — tells the agent about your memory system and available skills:
+Examples of what to write:
+- `User is a software engineer working primarily in Python and TypeScript`
+- `User is a small business owner managing an e-commerce store`
+- `User is a student learning programming for the first time`
 
-```markdown
-# Second Brain Memory System
-Governed memory at `~/.claude/`. Principles + format rules: `_system/memory/memory-rules.md` (load on demand).
+The agent reads this on every session start to tailor its responses to you.
 
-## Memory Writing Rules (active every session)
-- One line per fact; `W:` = why; `A:` = when to apply; no paragraph prose
-- Skip preamble — start with the rule or fact directly
-- Code blocks only when exact syntax is the memory (commands, queries)
-- MEMORY.md entry descriptions: ≤8 words
+**Optionally edit `feedback_response_style.md`** to add or remove communication preferences. The defaults are sensible but you can tune them.
 
-## Skills
-`/memory-write` `/memory-recall` `/audit-memory` `/snapshot-memory` `/promote-memory` `/recover-session` `/inspect-compaction` `/consolidate-memory`
-```
+### How memory grows over time
 
-**`~/.claude/projects/-Users-YOUR_USERNAME/memory/MEMORY.md`** — start empty, the agent will populate it:
+The agent will add new memory files to `~/.claude/projects/-Users-YOUR_USERNAME/memory/` as it learns things about you and your projects. Each file has a frontmatter header (`type: user | feedback | project | reference`) and one-line facts. The `MEMORY.md` index is updated automatically to point to each new file.
 
-```markdown
-# Project Memory Index
-```
+Skills are slash commands you can invoke inside a session:
 
-**`~/.claude/_system/memory/memory-rules.md`** — memory governance rules. See the full file at [`docs/memory-rules-template.md`](docs/memory-rules-template.md) or use this minimal version:
-
-```markdown
-# Memory System Rules
-
-## Content Format Rules
-- One line per fact — no paragraph prose in memory bodies
-- Use `W:` (why) and `A:` (when to apply) as inline labels
-- Skip preamble sentences — start with the rule or fact directly
-- Code blocks only when exact syntax is the memory
-- MEMORY.md entry descriptions: ≤8 words
-```
-
-### Skills
-
-Skills are markdown files in `~/.claude/skills/` that define slash commands. The agent calls them via `/skill-name`. You can start with the skills in this repo (if included) or let the agent create them as needed.
-
-The memory skills used by this setup:
-
-| Skill | Purpose |
+| Skill | What it does |
 |---|---|
-| `/memory-write` | Save a new memory fact |
+| `/memory-write` | Save a fact the agent should remember |
 | `/memory-recall` | Retrieve memories by keyword or topic |
-| `/audit-memory` | Check for stale or contradictory memories |
-| `/snapshot-memory` | Capture current session state |
+| `/audit-memory` | Health check — detect stale or contradictory memories |
+| `/snapshot-memory` | Snapshot memory before risky changes |
 | `/promote-memory` | Promote a candidate memory to permanent |
-| `/recover-session` | Recover context after a compaction event |
+| `/recover-session` | Recover context after a crash or compaction event |
 | `/consolidate-memory` | Merge duplicate or related memories |
 | `/inspect-compaction` | Review compaction candidates |
 
